@@ -3,7 +3,7 @@ import codecs
 import re
 import tempfile
 from pathlib import Path
-
+import requests
 import numpy as np
 import soundfile as sf
 import tomli
@@ -19,6 +19,24 @@ from vocos import Vocos
 from model import CFM, DiT, MMDiT, UNetT
 from model.utils import (convert_char_to_pinyin, get_tokenizer,
                          load_checkpoint, save_spectrogram)
+
+# Function to download audio from URL
+def download_audio(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Check if the request was successful
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_audio:
+            tmp_audio.write(response.content)
+            tmp_audio.flush()
+            return tmp_audio.name  # Return the path to the temporary audio file
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to download audio from {url}: {e}")
+        return None
+
+
+# Function to check if the input is a URL
+def is_url(string):
+    return string.startswith('http://') or string.startswith('https://')
 
 parser = argparse.ArgumentParser(
     prog="python3 inference-cli.py",
@@ -98,6 +116,15 @@ device = (
     if torch.cuda.is_available()
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
+
+# Check if we need to download the reference audio from a URL
+if is_url(ref_audio):
+    print(f"Downloading reference audio from {ref_audio}...")
+    ref_audio_path = download_audio(ref_audio)
+    if ref_audio_path is None:
+        raise ValueError("Failed to download the reference audio.")
+else:
+    ref_audio_path = ref_audio  # It's a local file path
 
 if args.load_vocoder_from_local:
     print(f"Load vocos from local path {vocos_local_path}")
@@ -299,7 +326,7 @@ def infer_batch(ref_audio, ref_text, gen_text_batches, model, remove_silence, cr
     combined_spectrogram = np.concatenate(spectrograms, axis=1)
     save_spectrogram(combined_spectrogram, spectrogram_path)
     print(spectrogram_path)
-
+    return f.name
 
 def infer(ref_audio_orig, ref_text, gen_text, model, remove_silence, cross_fade_duration=0.15):
 
@@ -357,7 +384,7 @@ def infer(ref_audio_orig, ref_text, gen_text, model, remove_silence, cross_fade_
         print(f'gen_text {i}', gen_text)
     
     print(f"Generating audio using {model} in {len(gen_text_batches)} batches, loading models...")
-    return infer_batch((audio, sr), ref_text, gen_text_batches, model, remove_silence, cross_fade_duration)
+    output_file = infer_batch((audio, sr), ref_text, gen_text_batches, model, remove_silence, cross_fade_duration)
+    # Return the generated audio file path
+    return output_file
     
-
-infer(ref_audio, ref_text, gen_text, model, remove_silence)
