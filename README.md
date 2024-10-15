@@ -1,5 +1,21 @@
 # F5-TTS: A Fairytaler that Fakes Fluent and Faithful Speech with Flow Matching
 
+## Helpers
+https://base64.guru/converter/decode/audio
+
+https://tmpfiles.org
+
+
+Example payload
+```json
+{
+  "gen_text": "",
+  "ref_audio_url": "",
+  "model": "F5-TTS",
+  "remove_silence": false
+}
+```
+
 [![python](https://img.shields.io/badge/Python-3.10-brightgreen)](https://github.com/SWivid/F5-TTS)
 [![arXiv](https://img.shields.io/badge/arXiv-2410.06885-b31b1b.svg?logo=arXiv)](https://arxiv.org/abs/2410.06885)
 [![demo](https://img.shields.io/badge/GitHub-Demo%20page-blue.svg)](https://swivid.github.io/F5-TTS/)
