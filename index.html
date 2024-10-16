@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Generation Tester</title>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div x-data="audioApp()" class="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow-md">
+        <h1 class="text-2xl font-bold mb-4">Audio Generation Tester</h1>
+        
+        <div class="mb-4">
+            <label class="block mb-2">Select Voice:</label>
+            <select x-model="selectedVoice" class="w-full p-2 border rounded">
+                <option value="">Custom URL</option>
+                <template x-for="voice in predefinedVoices" :key="voice.url">
+                    <option :value="voice.url" x-text="voice.name"></option>
+                </template>
+            </select>
+        </div>
+        
+        <div class="mb-4" x-show="!selectedVoice">
+            <label class="block mb-2">Custom Voice URL:</label>
+            <input x-model="voiceUrl" type="text" class="w-full p-2 border rounded" placeholder="Enter voice URL">
+        </div>
+        
+        <div class="mb-4">
+            <label class="block mb-2">Text to generate:</label>
+            <textarea x-model="genText" class="w-full p-2 border rounded" rows="3" placeholder="Enter text to generate"></textarea>
+        </div>
+
+        <div class="mb-4">
+            <label class="block mb-2">Suggested Texts:</label>
+            <div class="flex flex-wrap gap-2">
+                <template x-for="(text, index) in suggestedTexts" :key="index">
+                    <button 
+                        @click="genText = text" 
+                        class="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition"
+                        x-text="text.substring(0, 20) + '...'"
+                    ></button>
+                </template>
+            </div>
+        </div>
+        
+        <button 
+            @click="generateAudio" 
+            class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            :disabled="isLoading"
+        >
+            <span x-show="!isLoading">Generate Audio</span>
+            <span x-show="isLoading">Loading...</span>
+        </button>
+        
+        <div x-show="errorMessage" class="mt-4 p-4 bg-red-100 text-red-700 rounded">
+            <p x-text="errorMessage"></p>
+        </div>
+
+        <div x-show="audioSrc" class="mt-4">
+            <h2 class="text-xl font-semibold mb-2">Generated Audio:</h2>
+            <audio :src="audioSrc" controls class="w-full"></audio>
+        </div>
+        
+        <div x-show="spectrogramSrc" class="mt-4">
+            <h2 class="text-xl font-semibold mb-2">Spectrogram:</h2>
+            <img :src="spectrogramSrc" alt="Spectrogram" class="w-full">
+        </div>
+        
+        <div x-show="transcription" class="mt-4">
+            <h2 class="text-xl font-semibold mb-2">Transcription:</h2>
+            <p x-text="transcription"></p>
+        </div>
+    </div>
+
+    <script>
+        function audioApp() {
+            return {
+                predefinedVoices: [
+                ],
+                suggestedTexts: [
+                    "Hello, world! This is a test of the audio generation system.",
+                    "The quick brown fox jumps over the lazy dog.",
+                    "To be, or not to be, that is the question.",
+                    "I have a dream that one day this nation will rise up and live out the true meaning of its creed.",
+                    "That's one small step for man, one giant leap for mankind."
+                ],
+                selectedVoice: '',
+                voiceUrl: '',
+                genText: '',
+                audioSrc: '',
+                spectrogramSrc: '',
+                transcription: '',
+                isLoading: false,
+                errorMessage: '',
+                
+                async generateAudio() {
+                    this.isLoading = true;
+                    this.errorMessage = '';
+                    this.audioSrc = '';
+                    this.spectrogramSrc = '';
+                    this.transcription = '';
+
+                    try {
+                        const response = await fetch('http://localhost:8000/generate', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                gen_text: this.genText,
+                                ref_audio_url: this.selectedVoice || this.voiceUrl,
+                                model: 'default_model',
+                                remove_silence: false
+                            }),
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
+                        const data = await response.json();
+                        
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+                        
+                        this.audioSrc = `data:audio/wav;base64,${data.generated_audio_base64}`;
+                        this.spectrogramSrc = `data:image/png;base64,${data.spectrogram_base64}`;
+                        this.transcription = data.transcribed_audio;
+                    } catch (error) {
+                        console.error('Error:', error);
+                        this.errorMessage = `An error occurred: ${error.message}`;
+                    } finally {
+                        this.isLoading = false;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,16 +1,42 @@
 from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import torch
 import torchaudio
 from transformers import pipeline
 import soundfile as sf
 import tempfile
-from inference_cli import infer, download_audio  # Assuming inference-cli.py functions are in the same directory
+from inference_core import setup, infer, download_audio, target_sample_rate  # Import from inference_core
 import os
 import base64
+from contextlib import asynccontextmanager
+import io
+import numpy as np
+import matplotlib.pyplot as plt
+from fastapi.responses import JSONResponse, PlainTextResponse
 
-app = FastAPI()
+is_ready = False
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global is_ready
+    # Initialize the model and vocoder
+    setup(config_path="inference-cli.toml", model_type="F5-TTS", load_vocoder_from_local=False)
+    # Set the ready flag to True after initialization is complete
+    is_ready = True
+    yield
+    # TODO: Clean up the ML models and release the resources
+    is_ready = False
+
+app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 # Load the Whisper model for transcription
 device = "cuda" if torch.cuda.is_available() else "cpu"
 whisper_model = pipeline("automatic-speech-recognition", model="openai/whisper-large-v2", device=device)
@@ -23,10 +49,12 @@ class GenerateAudioRequest(BaseModel):
     model: str
     remove_silence: bool = False
 
-def audio_to_base64(audio_file_path):
-    with open(audio_file_path, "rb") as audio_file:
-        audio_bytes = audio_file.read()
-    return base64.b64encode(audio_bytes).decode('utf-8')
+@app.get("/health", response_class=PlainTextResponse)
+async def health_check():
+    if is_ready:
+        return "OK"
+    else:
+        return PlainTextResponse("Not Ready", status_code=503)
 
 # Route for transcribing audio
 @app.post("/transcribe")
@@ -69,17 +97,29 @@ async def generate_audio(request: GenerateAudioRequest):
     model = request.model
     remove_silence = request.remove_silence
 
-    output_file = infer(ref_audio_path, ref_text, gen_text, model, remove_silence)
+    audio_data, spectrogram_data = infer(ref_audio_path, ref_text, gen_text, remove_silence)
 
-    # Convert the generated audio to base64
-    audio_base64 = audio_to_base64(output_file)
+    # Convert audio data to base64
+    buffer = io.BytesIO()
+    sf.write(buffer, audio_data, target_sample_rate, format='wav')
+    buffer.seek(0)
+    audio_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-    # Optionally clean up the temporary files
-    if os.path.exists(output_file):
-        os.remove(output_file)
+    # Convert spectrogram to base64
+    fig, ax = plt.subplots()
+    ax.imshow(spectrogram_data, aspect='auto', origin='lower')
+    plt.axis('off')
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format='png', bbox_inches='tight', pad_inches=0)
+    buffer.seek(0)
+    spectrogram_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+    plt.close(fig)
 
-    # Return the base64-encoded audio in JSON
-    return {"generated_audio_base64": audio_base64, "transcribe_audio": ref_text}
+    return JSONResponse({
+        "generated_audio_base64": audio_base64,
+        "spectrogram_base64": spectrogram_base64,
+        "transcribed_audio": ref_text
+    })
 
 if __name__ == "__main__":
     import uvicorn
