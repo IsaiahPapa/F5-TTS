@@ -46,7 +46,6 @@ class GenerateAudioRequest(BaseModel):
     gen_text: str
     ref_audio_url: str
     ref_text: str = None
-    model: str
     remove_silence: bool = False
 
 @app.get("/health", response_class=PlainTextResponse)
@@ -94,7 +93,6 @@ async def generate_audio(request: GenerateAudioRequest):
 
     # Call the inference function to generate audio
     gen_text = request.gen_text
-    model = request.model
     remove_silence = request.remove_silence
 
     audio_data, spectrogram_data = infer(ref_audio_path, ref_text, gen_text, remove_silence)
@@ -114,7 +112,7 @@ async def generate_audio(request: GenerateAudioRequest):
     buffer.seek(0)
     spectrogram_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
     plt.close(fig)
-
+    return audio_base64
     return JSONResponse({
         "generated_audio_base64": audio_base64,
         "spectrogram_base64": spectrogram_base64,
