@@ -14,10 +14,21 @@ if ! command -v conda &> /dev/null; then
     rm miniconda.sh
     echo 'export PATH="$HOME/miniconda/bin:$PATH"' >> $HOME/.bashrc
     source $HOME/.bashrc
+    export PATH="$HOME/miniconda/bin:$PATH"  # Manually export path in script to avoid issues
+
+    # Initialize Conda
+    $HOME/miniconda/bin/conda init
+    source $HOME/.bashrc
 fi
+
+# Ensure conda is initialized in the current shell
+source $HOME/.bashrc
+export PATH="$HOME/miniconda/bin:$PATH"
 
 # Setup conda environment
 conda create -n f5tts python=3.10 -y
+
+# Activate the environment
 conda activate f5tts
 
 # Install PyTorch and Torchaudio
