@@ -103,21 +103,7 @@ async def generate_audio(request: GenerateAudioRequest):
     buffer.seek(0)
     audio_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-    # Convert spectrogram to base64
-    fig, ax = plt.subplots()
-    ax.imshow(spectrogram_data, aspect='auto', origin='lower')
-    plt.axis('off')
-    buffer = io.BytesIO()
-    plt.savefig(buffer, format='png', bbox_inches='tight', pad_inches=0)
-    buffer.seek(0)
-    spectrogram_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-    plt.close(fig)
     return audio_base64
-    return JSONResponse({
-        "generated_audio_base64": audio_base64,
-        "spectrogram_base64": spectrogram_base64,
-        "transcribed_audio": ref_text
-    })
 
 if __name__ == "__main__":
     import uvicorn
