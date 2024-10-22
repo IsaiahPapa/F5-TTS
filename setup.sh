@@ -20,7 +20,7 @@ if ! command -v conda &> /dev/null; then
     $HOME/miniconda/bin/conda init
     source $HOME/.bashrc
 fi
-
+conda init
 # Ensure conda is initialized in the current shell
 source $HOME/.bashrc
 export PATH="$HOME/miniconda/bin:$PATH"
