@@ -6,6 +6,12 @@ https://base64.guru/converter/decode/audio
 https://tmpfiles.org
 
 
+Server Requirements
+ CPU: 2 cores
+ VRam: 14.7 GB
+ Ram: 2.5 GB
+ Disk: 29 GB
+
 Example payload
 ```json
 {
