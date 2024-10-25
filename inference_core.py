@@ -13,7 +13,6 @@ import tqdm
 from cached_path import cached_path
 from einops import rearrange
 from pydub import AudioSegment, silence
-from transformers import pipeline
 from vocos import Vocos
 
 from model import CFM, DiT, MMDiT, UNetT
@@ -237,21 +236,7 @@ def infer(ref_audio_orig, ref_text, gen_text, remove_silence, cross_fade_duratio
         ref_audio = f.name
 
     if not ref_text.strip():
-        print("[Core] No reference text provided, transcribing reference audio...")
-        pipe = pipeline(
-            "automatic-speech-recognition",
-            model="openai/whisper-large-v3-turbo",
-            torch_dtype=torch.float16,
-            device=device,
-        )
-        ref_text = pipe(
-            ref_audio,
-            chunk_length_s=30,
-            batch_size=128,
-            generate_kwargs={"task": "transcribe"},
-            return_timestamps=False,
-        )["text"].strip()
-        print("[Core] Finished transcription")
+        raise ValueError("No reference text provided")
     else:
         print("[Core] Using custom reference text...")
 

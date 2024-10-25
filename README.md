@@ -12,6 +12,10 @@ Server Requirements
  Ram: 2.5 GB
  Disk: 29 GB
 
+Download Size (also vram usage?)
+whisper-large-v2 - 6.17gb
+whisper-large-v3-turbo - 3.09gb
+
 Example payload
 ```json
 {

@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import torch
 import torchaudio
-from transformers import pipeline
 import soundfile as sf
 import tempfile
 from inference_core import setup, infer, download_audio, target_sample_rate  # Import from inference_core
@@ -15,7 +14,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 from fastapi.responses import JSONResponse, PlainTextResponse
 
+# Load the Whisper model for transcription
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
 is_ready = False
+
+def print_gpu_memory_usage():
+    if torch.cuda.is_available():
+        print(f"GPU Memory Usage:")
+        for i in range(torch.cuda.device_count()):
+            print(f"  GPU {i}: {torch.cuda.memory_allocated(i) / 1024**3:.2f} GB / {torch.cuda.memory_reserved(i) / 1024**3:.2f} GB")
+    else:
+        print("CUDA is not available")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,7 +35,6 @@ async def lifespan(app: FastAPI):
     # Set the ready flag to True after initialization is complete
     is_ready = True
     yield
-    # TODO: Clean up the ML models and release the resources
     is_ready = False
 
 app = FastAPI(lifespan=lifespan)
@@ -37,9 +46,7 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
-# Load the Whisper model for transcription
-device = "cuda" if torch.cuda.is_available() else "cpu"
-whisper_model = pipeline("automatic-speech-recognition", model="openai/whisper-large-v2", device=device)
+
 
 # Request model for generating audio
 class GenerateAudioRequest(BaseModel):
@@ -54,20 +61,6 @@ async def health_check():
         return "OK"
     else:
         return PlainTextResponse("Not Ready", status_code=503)
-
-# Route for transcribing audio
-@app.post("/transcribe")
-async def transcribe_audio(file: UploadFile = File(...)):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
-        # Save the uploaded file
-        audio_data = await file.read()
-        temp_audio.write(audio_data)
-        temp_audio.flush()
-        
-        # Transcribe the audio
-        transcription = whisper_model(temp_audio.name)["text"]
-    
-    return {"transcription": transcription}
 
 # Route for generating audio
 @app.post("/generate")
@@ -85,18 +78,15 @@ async def generate_audio(request: GenerateAudioRequest):
     # Use Whisper to transcribe the reference audio (if no ref_text provided)
     ref_text = request.ref_text
     if not ref_text:
-        print("Transcribing reference audio with Whisper...")
-        pipe = pipeline("automatic-speech-recognition", model="openai/whisper-large-v2", device=device)
-        transcription = pipe(ref_audio_path)["text"]
-        ref_text = transcription
-        print("Transcription completed.")
+        return {"error": "No reference text provided (API no longer transcribes reference audio.)"}
 
     # Call the inference function to generate audio
     gen_text = request.gen_text
     remove_silence = request.remove_silence
 
     audio_data, spectrogram_data = infer(ref_audio_path, ref_text, gen_text, remove_silence)
-
+    if(audio_data is None):
+        return {"error": "Failed to generate audio"}
     # Convert audio data to base64
     buffer = io.BytesIO()
     sf.write(buffer, audio_data, target_sample_rate, format='wav')
