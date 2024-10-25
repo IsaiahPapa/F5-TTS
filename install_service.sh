@@ -4,8 +4,8 @@
 CURRENT_USER=$(whoami)
 
 # Detect conda installation
-if [ -d "/creati/miniconda" ]; then
-    CONDA_PATH="/creati/miniconda"
+if [ -d "$HOME/miniconda" ]; then
+    CONDA_PATH="$HOME/miniconda"
 elif [ -d "$HOME/miniconda3" ]; then
     CONDA_PATH="$HOME/miniconda3"
 elif [ -d "$HOME/anaconda3" ]; then
