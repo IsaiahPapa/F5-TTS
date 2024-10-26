@@ -52,10 +52,11 @@ def setup(config_path="inference-cli.toml", model_type="F5-TTS", load_vocoder_fr
         vocos = Vocos.from_hparams(f"{vocos_local_path}/config.yaml")
         state_dict = torch.load(f"{vocos_local_path}/pytorch_model.bin", map_location=device)
         vocos.load_state_dict(state_dict)
-        vocos.eval()
     else:
         print("[Core] Download Vocos from huggingface charactr/vocos-mel-24khz")
         vocos = Vocos.from_pretrained("charactr/vocos-mel-24khz")
+
+    vocos.eval()
 
     print(f"[Core] Using Device '{device}'")
 
@@ -163,19 +164,24 @@ def infer_batch(ref_audio, ref_text, gen_text_batches, remove_silence, cross_fad
 
         # Measure CPU decoding time
         cpu_start_time = time.perf_counter()
-        generated_wave = vocos.decode(generated_mel_spec.cpu())
+        with torch.no_grad():
+            generated_wave_cpu = vocos.cpu().decode(generated_mel_spec.cpu())
         cpu_end_time = time.perf_counter()
         cpu_decode_time = cpu_end_time - cpu_start_time
         
         # Measure GPU decoding time
         gpu_start_time = time.perf_counter()
-        generated_wave_gpu = vocos.decode(generated_mel_spec.to(device))
+        with torch.no_grad():
+            generated_wave_gpu = vocos.to(device).decode(generated_mel_spec.to(device))
         torch.cuda.synchronize()  # Ensure GPU operations are completed
         gpu_end_time = time.perf_counter()
         gpu_decode_time = gpu_end_time - gpu_start_time
 
         print(f"CPU decoding time: {cpu_decode_time:.4f} seconds")
         print(f"GPU decoding time: {gpu_decode_time:.4f} seconds")
+        
+        # Use GPU-decoded wave for further processing if on GPU, otherwise use CPU
+        generated_wave = generated_wave_gpu if torch.cuda.is_available() else generated_wave_cpu
 
 
         if rms < target_rms:
