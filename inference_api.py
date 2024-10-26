@@ -15,17 +15,7 @@ import matplotlib.pyplot as plt
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 # Load the Whisper model for transcription
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
 is_ready = False
-
-def print_gpu_memory_usage():
-    if torch.cuda.is_available():
-        print(f"GPU Memory Usage:")
-        for i in range(torch.cuda.device_count()):
-            print(f"  GPU {i}: {torch.cuda.memory_allocated(i) / 1024**3:.2f} GB / {torch.cuda.memory_reserved(i) / 1024**3:.2f} GB")
-    else:
-        print("CUDA is not available")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
