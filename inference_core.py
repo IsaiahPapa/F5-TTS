@@ -14,6 +14,7 @@ from cached_path import cached_path
 from einops import rearrange
 from pydub import AudioSegment, silence
 from vocos import Vocos
+import time
 
 from model import CFM, DiT, MMDiT, UNetT
 from model.utils import (convert_char_to_pinyin, get_tokenizer,
@@ -159,7 +160,24 @@ def infer_batch(ref_audio, ref_text, gen_text_batches, remove_silence, cross_fad
 
         generated = generated[:, ref_audio_len:, :]
         generated_mel_spec = rearrange(generated, "1 n d -> 1 d n")
+
+        # Measure CPU decoding time
+        cpu_start_time = time.perf_counter()
         generated_wave = vocos.decode(generated_mel_spec.cpu())
+        cpu_end_time = time.perf_counter()
+        cpu_decode_time = cpu_end_time - cpu_start_time
+        
+        # Measure GPU decoding time
+        gpu_start_time = time.perf_counter()
+        generated_wave_gpu = vocos.decode(generated_mel_spec.to(device))
+        torch.cuda.synchronize()  # Ensure GPU operations are completed
+        gpu_end_time = time.perf_counter()
+        gpu_decode_time = gpu_end_time - gpu_start_time
+
+        print(f"CPU decoding time: {cpu_decode_time:.4f} seconds")
+        print(f"GPU decoding time: {gpu_decode_time:.4f} seconds")
+
+
         if rms < target_rms:
             generated_wave = generated_wave * rms / target_rms
 
